@@ -1,0 +1,84 @@
+name: Testing and Linting
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python-version: [3.9]
+    services:
+      mongodb:
+        image: mongo:4.0
+        ports:
+          - 27017:27017
+      girder:
+        image: girder/girder:v5.0.0a7-py3
+        ports:
+          - 8080:8080
+      zookeeper:
+        image: confluentinc/cp-zookeeper:7.3.0
+        ports:
+          - 2181:2181
+      broker:
+        image: confluentinc/cp-kafka:7.3.0
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_BROKER_ID: 1
+          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://broker:29092
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt .[tests]
+
+      - name: Run tests
+        run: |
+          python -m unittest discover -s test/test_scripts -p 'test_*.py'
+
+#  lint:
+#    name: Lint Code
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v2
+#
+#      - name: Set up Python
+#        uses: actions/setup-python@v2
+#        with:
+#          python-version: '3.8'
+#
+#      - name: Install dependencies
+#        run: |
+#          python -m pip install --upgrade pip
+#          pip install flake8
+#
+#      - name: Run linter
+#        run: |
+#          flake8 .
